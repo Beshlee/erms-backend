@@ -1,14 +1,22 @@
+using ERMS.Api.Authentication;
+using ERMS.Application.Abstractions.Authentication;
 using ERMS.Application.Abstractions.Persistence;
+using ERMS.Application.Interfaces;
+using ERMS.Application.Services;
+using ERMS.Application.Validators;
+using ERMS.Infrastructure.Authentication;
 using ERMS.Infrastructure.Persistence;
 using ERMS.Infrastructure.Repositories;
+using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 
 namespace ERMS.Api.DependencyInjection;
 
 /// <summary>
-/// Composition root: DbContext, generic repository ve UnitOfWork kayıtları burada toplanır.
-/// Application/Infrastructure katmanları kendi DependencyInjection.cs dosyalarını barındırmaz —
-/// gerçek DI container burada (Program.cs → WebApplication.CreateBuilder) oluşur.
+/// Composition root: DbContext, generic repository, UnitOfWork ve auth servislerinin
+/// kayıtları burada toplanır. Application/Infrastructure katmanları kendi
+/// DependencyInjection.cs dosyalarını barındırmaz — gerçek DI container burada
+/// (Program.cs → WebApplication.CreateBuilder) oluşur.
 /// </summary>
 public static class ApiServiceRegistration
 {
@@ -17,8 +25,17 @@ public static class ApiServiceRegistration
         IConfiguration configuration)
     {
         AddPersistence(services, configuration);
+        AddAuthenticationServices(services, configuration);
+        AddApplicationServices(services);
 
         return services;
+    }
+
+    private static void AddApplicationServices(IServiceCollection services)
+    {
+        services.AddScoped<IRequestService, RequestService>();
+
+        services.AddValidatorsFromAssemblyContaining<CreateRequestDtoValidator>();
     }
 
     private static void AddPersistence(
@@ -38,5 +55,19 @@ public static class ApiServiceRegistration
         services.AddScoped<IRequestQueryRepository, RequestQueryRepository>();
 
         services.AddScoped<IUnitOfWork, UnitOfWork>();
+    }
+
+    private static void AddAuthenticationServices(
+        IServiceCollection services,
+        IConfiguration configuration)
+    {
+        services.Configure<JwtSettings>(configuration.GetSection(JwtSettings.SectionName));
+
+        services.AddScoped<IPasswordHasher, PasswordHasher>();
+        services.AddScoped<IJwtTokenService, JwtTokenService>();
+        services.AddScoped<IAuthService, AuthService>();
+
+        services.AddHttpContextAccessor();
+        services.AddScoped<ICurrentUserService, CurrentUserService>();
     }
 }

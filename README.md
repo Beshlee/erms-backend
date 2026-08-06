@@ -26,8 +26,12 @@ tests/
 - .NET 8 — ASP.NET Core Web API
 - Entity Framework Core 8 (Code-First + Migrations) — SQL Server (LocalDB)
 - Generic Repository (`IRepository<T>`) + karmaşık sorgular için `IRequestQueryRepository`
-- Swagger/OpenAPI (Swashbuckle)
-- (Planlanan) JWT, FluentValidation, AutoMapper, BCrypt
+- JWT (`Microsoft.AspNetCore.Authentication.JwtBearer`) — kimlik doğrulama ve rol tabanlı yetkilendirme
+- BCrypt (`BCrypt.Net-Next`) — parola hash'leme
+- Global exception middleware — standart hata modeli (Bölüm 5.6)
+- FluentValidation — girdi doğrulama (Bölüm 6.3)
+- Swagger/OpenAPI (Swashbuckle, JWT "Authorize" desteğiyle)
+- (Planlanan) AutoMapper
 
 ## Kurulum ve Çalıştırma
 
@@ -44,10 +48,30 @@ dotnet ef database update --project src/ERMS.Infrastructure --startup-project sr
 dotnet run --project src/ERMS.Api
 ```
 
+Geliştirme ortamında migration'lar `dotnet run` sırasında otomatik uygulanır ve örnek veri
+(seed) eklenir — ayrıca `dotnet ef database update` çalıştırmana gerek yok.
+
 Swagger arayüzü geliştirme ortamında `https://localhost:<port>/swagger` adresinde açılır.
+Sağ üstteki **Authorize** butonuna `Bearer <token>` yapıştırarak korumalı uç noktaları
+Swagger üzerinden de deneyebilirsin.
 
 Bağlantı dizesi `src/ERMS.Api/appsettings.json` içindeki `ConnectionStrings:DefaultConnection`
 altında tanımlıdır (varsayılan: `(localdb)\mssqllocaldb`, veritabanı adı `ErmsDb`).
+
+### Test kullanıcıları (seed data)
+
+Her birinin parolası **`Passw0rd!`**:
+
+| E-posta | Rol |
+|---|---|
+| `ahmet@sirket.com` | Employee |
+| `mehmet@sirket.com` | Manager (Ahmet'in yöneticisi) |
+| `admin@erms.com` | Admin |
+
+⚠️ Bu bilgiler yalnızca yerel geliştirme/demo amaçlıdır — gerçek bir ortamda asla kullanılmamalı.
+Aynı şekilde `appsettings.json`'daki JWT `Secret` değeri de yalnızca geliştirme içindir;
+gerçek bir deployment'ta ortam değişkeni / user-secrets'a taşınmalı, asla kaynak koduna
+gömülü bırakılmamalıdır.
 
 ## Proje Durumu
 
@@ -57,9 +81,9 @@ ER diyagramı, REST API sözleşmeleri ve sprint planını içerir.
 
 - [x] Katmanlı proje iskeleti + EF Core bağlantısı (Gün 1)
 - [x] Domain entity'leri + DbContext + ilişkiler + ilk migration (Gün 2)
-- [ ] JWT login + rol tabanlı yetkilendirme (Gün 3, FR-01..06)
-- [ ] Talep oluşturma + taslak + doğrulama (Gün 4, FR-16..22)
-- [ ] Talep listeleme + filtre + arama + sayfalama (Gün 5, FR-25..29)
+- [x] JWT login + rol tabanlı yetkilendirme (Gün 3, FR-01..06)
+- [x] Talep oluşturma + taslak + doğrulama (Gün 4, FR-16..22)
+- [x] Talep listeleme + filtre + arama + sayfalama (Gün 5, FR-25..29)
 - [ ] Gönderme/iptal + durum geçişleri + audit log (Gün 6, FR-23,30,41)
 - [ ] Onay akışı (Gün 7, FR-32..37)
 - [ ] Yorumlar + admin tür yönetimi (Gün 8, FR-13,38,39)
