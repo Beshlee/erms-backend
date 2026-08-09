@@ -91,6 +91,7 @@ public sealed class RequestQueryRepository : IRequestQueryRepository
             .Include(x => x.Comments)
                 .ThenInclude(c => c.Author)
             .Include(x => x.History.OrderBy(h => h.ChangedAt))
+                .ThenInclude(h => h.ChangedBy)
             .FirstOrDefaultAsync(x => x.Id == requestId, cancellationToken);
     }
 }

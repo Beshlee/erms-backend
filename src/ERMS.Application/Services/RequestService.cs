@@ -23,6 +23,7 @@ public sealed class RequestService : IRequestService
 
     private readonly IRepository<Request> _requestRepository;
     private readonly IRepository<RequestType> _requestTypeRepository;
+    private readonly IRepository<RequestHistory> _requestHistoryRepository;
     private readonly IRequestQueryRepository _requestQueryRepository;
     private readonly ICurrentUserService _currentUserService;
     private readonly IUnitOfWork _unitOfWork;
@@ -32,6 +33,7 @@ public sealed class RequestService : IRequestService
     public RequestService(
         IRepository<Request> requestRepository,
         IRepository<RequestType> requestTypeRepository,
+        IRepository<RequestHistory> requestHistoryRepository,
         IRequestQueryRepository requestQueryRepository,
         ICurrentUserService currentUserService,
         IUnitOfWork unitOfWork,
@@ -40,6 +42,7 @@ public sealed class RequestService : IRequestService
     {
         _requestRepository = requestRepository;
         _requestTypeRepository = requestTypeRepository;
+        _requestHistoryRepository = requestHistoryRepository;
         _requestQueryRepository = requestQueryRepository;
         _currentUserService = currentUserService;
         _unitOfWork = unitOfWork;
@@ -90,6 +93,17 @@ public sealed class RequestService : IRequestService
 
         await _requestRepository.AddAsync(request, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // FR-41: Draft dışında bir durumla doğrudan oluşturulduysa (saveAsDraft=false),
+        // bu da ilk durum değişikliğidir — wireframe'deki "Oluşturuldu (Taslak → Beklemede)"
+        // örneğiyle aynı mantık (Şekil 3, Ekran 4). request.Id'ye ihtiyaç duyduğu için
+        // yukarıdaki SaveChangesAsync'ten sonra, ayrı bir kayıt olarak yapılıyor.
+        if (status != RequestStatus.Draft)
+        {
+            await AddHistoryAsync(
+                request.Id, currentUserId, RequestStatus.Draft, status, "Talep oluşturuldu ve gönderildi.", cancellationToken);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+        }
 
         return new RequestResponseDto(
             request.Id,
@@ -199,6 +213,177 @@ public sealed class RequestService : IRequestService
             PageSize = paged.PageSize,
             TotalCount = paged.TotalCount
         };
+    }
+
+    public async Task<RequestResponseDto> SubmitAsync(
+        int requestId,
+        CancellationToken cancellationToken = default)
+    {
+        var request = await _requestRepository.GetByIdAsync(requestId, cancellationToken)
+            ?? throw new NotFoundAppException("Talep bulunamadı.");
+
+        var currentUserId = RequireCurrentUserId();
+
+        if (request.RequesterId != currentUserId)
+        {
+            throw new ForbiddenAppException("Bu talep size ait değil.");
+        }
+
+        if (request.Status != RequestStatus.Draft)
+        {
+            throw new ConflictAppException("Yalnızca taslak durumundaki talepler gönderilebilir.");
+        }
+
+        var requestType = await GetActiveRequestTypeAsync(request.RequestTypeId, cancellationToken);
+
+        // Taslakken eksik bırakılabilen tür bazlı alanlar (FR-18/19) artık tamam olmalı —
+        // "gönderme" tam da bu tamlığın denetlendiği andır (bkz. CreateAsync'teki gerekçe).
+        ValidateTypeSpecificRules(requestType, request.StartDate, request.EndDate, request.Amount);
+
+        var oldStatus = request.Status;
+
+        // FR-23/FR-24: onay gerektirmeyen türlerde doğrudan Approved, diğerlerinde Pending.
+        var newStatus = requestType.RequiresApproval
+            ? RequestStatus.Pending
+            : RequestStatus.Approved;
+
+        request.Status = newStatus;
+        request.UpdatedAt = DateTime.UtcNow;
+        _requestRepository.Update(request);
+
+        await AddHistoryAsync(request.Id, currentUserId, oldStatus, newStatus, "Talep gönderildi.", cancellationToken);
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return new RequestResponseDto(
+            request.Id,
+            request.Title,
+            requestType.Name,
+            request.Status.ToString(),
+            request.CreatedAt);
+    }
+
+    public async Task<RequestResponseDto> CancelAsync(
+        int requestId,
+        CancellationToken cancellationToken = default)
+    {
+        var request = await _requestRepository.GetByIdAsync(requestId, cancellationToken)
+            ?? throw new NotFoundAppException("Talep bulunamadı.");
+
+        var currentUserId = RequireCurrentUserId();
+
+        if (request.RequesterId != currentUserId)
+        {
+            throw new ForbiddenAppException("Bu talep size ait değil.");
+        }
+
+        // FR-30 / US-05: yalnızca Pending durumundaki talep iptal edilebilir
+        // (Approved bir talebi iptal etmeye çalışmak reddedilir).
+        if (request.Status != RequestStatus.Pending)
+        {
+            throw new ConflictAppException("Yalnızca beklemede olan talepler iptal edilebilir.");
+        }
+
+        var oldStatus = request.Status;
+        request.Status = RequestStatus.Cancelled;
+        request.UpdatedAt = DateTime.UtcNow;
+        _requestRepository.Update(request);
+
+        await AddHistoryAsync(request.Id, currentUserId, oldStatus, RequestStatus.Cancelled, "Talep iptal edildi.", cancellationToken);
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // Not: Cancel'da GetActiveRequestTypeAsync kullanmıyoruz — tür sonradan pasife
+        // alınmış olsa bile mevcut bir talebi iptal edebilmek gerekir (FR-15 yalnızca
+        // "yeni talep oluştururken" seçilebilirliği kısıtlıyor).
+        var requestType = await _requestTypeRepository.GetByIdAsync(request.RequestTypeId, cancellationToken);
+
+        return new RequestResponseDto(
+            request.Id,
+            request.Title,
+            requestType?.Name ?? "Bilinmiyor",
+            request.Status.ToString(),
+            request.CreatedAt);
+    }
+
+    public async Task<RequestDetailDto> GetDetailAsync(
+        int requestId,
+        CancellationToken cancellationToken = default)
+    {
+        var request = await _requestQueryRepository.GetDetailAsync(requestId, cancellationToken)
+            ?? throw new NotFoundAppException("Talep bulunamadı.");
+
+        var currentUserId = RequireCurrentUserId();
+        var currentUserRole = _currentUserService.Role;
+
+        var isOwner = request.RequesterId == currentUserId;
+        var isManagerOfRequester = currentUserRole == UserRole.Manager
+            && request.Requester.ManagerId == currentUserId;
+
+        // FR-26: Employee yalnızca kendi talebini görebilir; Manager kendisine bağlı
+        // personelin talebini de görebilir (Bölüm 1.4).
+        if (!isOwner && !isManagerOfRequester)
+        {
+            throw new ForbiddenAppException("Bu talebi görüntüleme yetkiniz yok.");
+        }
+
+        // FR-42: durum geçmişi kronolojik sırada (RequestQueryRepository zaten ChangedAt'e göre sıralıyor).
+        var history = request.History
+            .Select(h => new RequestHistoryItemDto(
+                h.OldStatus.ToString(),
+                h.NewStatus.ToString(),
+                h.Note,
+                h.ChangedAt,
+                $"{h.ChangedBy.FirstName} {h.ChangedBy.LastName}"))
+            .ToList();
+
+        // FR-39: yorumlar, yazan kişi ve oluşturulma zamanıyla birlikte, kronolojik sırada.
+        var comments = request.Comments
+            .OrderBy(c => c.CreatedAt)
+            .Select(c => new CommentResponseDto(
+                c.Id,
+                c.Content,
+                $"{c.Author.FirstName} {c.Author.LastName}",
+                c.CreatedAt))
+            .ToList();
+
+        return new RequestDetailDto(
+            request.Id,
+            request.Title,
+            request.Description,
+            request.RequestType.Name,
+            request.Status.ToString(),
+            request.Priority.ToString(),
+            request.StartDate,
+            request.EndDate,
+            request.Amount,
+            request.CreatedAt,
+            request.UpdatedAt,
+            request.RequesterId,
+            $"{request.Requester.FirstName} {request.Requester.LastName}",
+            history,
+            comments);
+    }
+
+    private async Task AddHistoryAsync(
+        int requestId,
+        int changedById,
+        RequestStatus oldStatus,
+        RequestStatus newStatus,
+        string? note,
+        CancellationToken cancellationToken)
+    {
+        var history = new RequestHistory
+        {
+            RequestId = requestId,
+            ChangedById = changedById,
+            OldStatus = oldStatus,
+            NewStatus = newStatus,
+            Note = note,
+            ChangedAt = DateTime.UtcNow
+        };
+
+        await _requestHistoryRepository.AddAsync(history, cancellationToken);
     }
 
     private async Task<RequestType> GetActiveRequestTypeAsync(int requestTypeId, CancellationToken cancellationToken)

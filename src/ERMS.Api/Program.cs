@@ -22,6 +22,16 @@ builder.Services.AddControllers()
         options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
     });
 
+// [ApiController], nullable olmayan string alanları (ör. Title, Comment) JSON'dan tamamen
+// eksik gelirse otomatik olarak "zorunlu" sayıp kendi ProblemDetails formatıyla 400 döner —
+// bu, controller'a hiç girmeden FluentValidation'ı (ve standart hata modelimizi, Bölüm 5.6)
+// devre dışı bırakır. Bunu kapatıyoruz ki TÜM doğrulama hataları tek, tutarlı bir formattan
+// (ValidationAppException → ExceptionHandlingMiddleware) geçsin.
+builder.Services.Configure<Microsoft.AspNetCore.Mvc.ApiBehaviorOptions>(options =>
+{
+    options.SuppressModelStateInvalidFilter = true;
+});
+
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
@@ -94,6 +104,22 @@ builder.Services
 
 builder.Services.AddAuthorization();
 
+// erms-frontend (Angular, ayrı repo/origin) API'yi tüketebilsin diye CORS.
+// İzinli origin'ler appsettings.json → "AllowedOrigins" içinden okunur.
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AngularClient", policy =>
+    {
+        var origins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>()
+            ?? ["http://localhost:4200"];
+
+        policy
+            .WithOrigins(origins)
+            .AllowAnyHeader()
+            .AllowAnyMethod();
+    });
+});
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -113,6 +139,8 @@ if (app.Environment.IsDevelopment())
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 app.UseHttpsRedirection();
+
+app.UseCors("AngularClient");
 
 app.UseAuthentication();
 app.UseAuthorization();

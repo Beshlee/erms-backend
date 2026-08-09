@@ -30,6 +30,7 @@ tests/
 - BCrypt (`BCrypt.Net-Next`) — parola hash'leme
 - Global exception middleware — standart hata modeli (Bölüm 5.6)
 - FluentValidation — girdi doğrulama (Bölüm 6.3)
+- CORS — `erms-frontend` (varsayılan `http://localhost:4200`) `appsettings.json → AllowedOrigins`
 - Swagger/OpenAPI (Swashbuckle, JWT "Authorize" desteğiyle)
 - (Planlanan) AutoMapper
 
@@ -84,7 +85,11 @@ ER diyagramı, REST API sözleşmeleri ve sprint planını içerir.
 - [x] JWT login + rol tabanlı yetkilendirme (Gün 3, FR-01..06)
 - [x] Talep oluşturma + taslak + doğrulama (Gün 4, FR-16..22)
 - [x] Talep listeleme + filtre + arama + sayfalama (Gün 5, FR-25..29)
-- [ ] Gönderme/iptal + durum geçişleri + audit log (Gün 6, FR-23,30,41)
-- [ ] Onay akışı (Gün 7, FR-32..37)
-- [ ] Yorumlar + admin tür yönetimi (Gün 8, FR-13,38,39)
+- [x] Gönderme/iptal + durum geçişleri + audit log (Gün 6, FR-23,30,41,42)
+- [x] Onay akışı (Gün 7, FR-32..37)
+- [x] Yorumlar + admin kullanıcı/departman/talep türü yönetimi (Gün 8, FR-07..15, FR-38, FR-39)
 - [ ] Global hata yönetimi, Swagger temizliği, README (Gün 10)
+
+Not: `UserResponseDto`'ya sonradan `DepartmentId` eklendi (frontend'in admin kullanıcı düzenleme
+formunda departman dropdown'ını isim eşleştirmesi gibi kırılgan bir yöntemle değil, doğrudan ID
+ile önceden doldurabilmesi için — bkz. `erms-frontend` Ekran 6 çalışması).

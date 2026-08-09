@@ -34,6 +34,11 @@ public static class ApiServiceRegistration
     private static void AddApplicationServices(IServiceCollection services)
     {
         services.AddScoped<IRequestService, RequestService>();
+        services.AddScoped<IApprovalService, ApprovalService>();
+        services.AddScoped<ICommentService, CommentService>();
+        services.AddScoped<IUserService, UserService>();
+        services.AddScoped<IDepartmentService, DepartmentService>();
+        services.AddScoped<IRequestTypeService, RequestTypeService>();
 
         services.AddValidatorsFromAssemblyContaining<CreateRequestDtoValidator>();
     }
