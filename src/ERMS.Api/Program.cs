@@ -57,6 +57,15 @@ builder.Services.AddSwaggerGen(options =>
             Array.Empty<string>()
         }
     });
+
+    // FR-48: controller/action'lardaki /// <summary> yorumları Swagger UI'da endpoint
+    // açıklaması olarak görünsün (ERMS.Api.csproj → GenerateDocumentationFile).
+    var xmlFile = $"{System.Reflection.Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+    if (File.Exists(xmlPath))
+    {
+        options.IncludeXmlComments(xmlPath);
+    }
 });
 
 builder.Services.AddErmsServices(builder.Configuration);

@@ -88,8 +88,16 @@ ER diyagramı, REST API sözleşmeleri ve sprint planını içerir.
 - [x] Gönderme/iptal + durum geçişleri + audit log (Gün 6, FR-23,30,41,42)
 - [x] Onay akışı (Gün 7, FR-32..37)
 - [x] Yorumlar + admin kullanıcı/departman/talep türü yönetimi (Gün 8, FR-07..15, FR-38, FR-39)
-- [ ] Global hata yönetimi, Swagger temizliği, README (Gün 10)
+- [x] Global hata yönetimi, Swagger temizliği, README (Gün 10)
 
 Not: `UserResponseDto`'ya sonradan `DepartmentId` eklendi (frontend'in admin kullanıcı düzenleme
 formunda departman dropdown'ını isim eşleştirmesi gibi kırılgan bir yöntemle değil, doğrudan ID
 ile önceden doldurabilmesi için — bkz. `erms-frontend` Ekran 6 çalışması).
+
+### Gün 10 — son temizlik notları
+- `ERMS.Api.http` artık gerçek uç nokta örnekleriyle dolu (eski şablon `weatherforecast`
+  isteği kaldırıldı).
+- Swagger UI artık controller/action'lardaki `/// <summary>` XML yorumlarını gösteriyor
+  (`GenerateDocumentationFile` + `IncludeXmlComments`, FR-48).
+- Frontend'deki "Admin varsayılan yönlendirme" sınırlaması (önceki not) düzeltildi —
+  bkz. `erms-frontend/README.md`.

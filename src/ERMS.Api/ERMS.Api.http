@@ -1,6 +1,63 @@
 @ERMS.Api_HostAddress = http://localhost:5269
 
-GET {{ERMS.Api_HostAddress}}/weatherforecast/
-Accept: application/json
+### Giriş (FR-01..03) — dönen "token" değerini aşağıdaki isteklerde @token olarak kullan
+POST {{ERMS.Api_HostAddress}}/api/auth/login
+Content-Type: application/json
 
-###
+{
+  "email": "ahmet@sirket.com",
+  "password": "Passw0rd!"
+}
+
+### Giriş yapmış kullanıcı bilgisi (FR-04 — tokensiz denenirse 401 döner)
+GET {{ERMS.Api_HostAddress}}/api/auth/me
+Authorization: Bearer @token
+
+### Aktif talep türlerini listele (FR-15)
+GET {{ERMS.Api_HostAddress}}/api/request-types
+Authorization: Bearer @token
+
+### Yeni talep oluştur (FR-16..21, FR-24)
+POST {{ERMS.Api_HostAddress}}/api/requests
+Authorization: Bearer @token
+Content-Type: application/json
+
+{
+  "requestTypeId": 1,
+  "title": "Yıllık izin talebi",
+  "description": "15-19 Temmuz yıllık izin.",
+  "startDate": "2026-07-15T00:00:00Z",
+  "endDate": "2026-07-19T00:00:00Z",
+  "priority": "Normal",
+  "saveAsDraft": false
+}
+
+### Kendi taleplerini filtreli/sayfalı listele (FR-25..29)
+GET {{ERMS.Api_HostAddress}}/api/requests?status=Pending&page=1&pageSize=10
+Authorization: Bearer @token
+
+### Talep detayı + geçmiş + yorumlar (FR-42, FR-39)
+GET {{ERMS.Api_HostAddress}}/api/requests/1
+Authorization: Bearer @token
+
+### Onay bekleyen talepler (FR-32, Manager token'ı gerekir)
+GET {{ERMS.Api_HostAddress}}/api/approvals/pending
+Authorization: Bearer @token
+
+### Talebi onayla (FR-33, FR-35)
+POST {{ERMS.Api_HostAddress}}/api/approvals/1/approve
+Authorization: Bearer @token
+Content-Type: application/json
+
+{
+  "comment": "Uygundur, onaylandı."
+}
+
+### Talebi reddet — gerekçe zorunlu (FR-34)
+POST {{ERMS.Api_HostAddress}}/api/approvals/1/reject
+Authorization: Bearer @token
+Content-Type: application/json
+
+{
+  "comment": "Bu dönem izin yoğunluğu nedeniyle reddedildi."
+}

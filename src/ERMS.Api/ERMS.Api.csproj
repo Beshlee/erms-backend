@@ -4,6 +4,10 @@
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <!-- FR-48: controller/action üzerindeki /// <summary> yorumlarının Swagger UI'da görünmesi için. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- Her public üye için XML doc zorunluluğu (CS1591) istemiyoruz — sadece varsa gösterilsin. -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
