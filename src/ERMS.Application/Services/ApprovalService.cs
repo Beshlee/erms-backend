@@ -9,6 +9,11 @@ using FluentValidation;
 
 namespace ERMS.Application.Services;
 
+/// <summary>
+/// Yönetici onay/red akışı (FR-32..37) — ApproveAsync ve RejectAsync, ortak kuralları
+/// (kendi talebini onaylayamama, yalnızca kendine bağlı personeli onaylayabilme, zaten
+/// sonuçlanmış talebi tekrar karara bağlayamama) paylaşan private DecideAsync'i çağırır.
+/// </summary>
 public sealed class ApprovalService : IApprovalService
 {
     private readonly IRepository<Request> _requestRepository;

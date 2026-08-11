@@ -7,6 +7,7 @@ using FluentValidation;
 
 namespace ERMS.Application.Services;
 
+/// <summary>Admin talep türü yönetimi (FR-13..15) — İzin/Masraf/vb. türlerin CRUD'u.</summary>
 public sealed class RequestTypeService : IRequestTypeService
 {
     private readonly IRepository<RequestType> _requestTypeRepository;

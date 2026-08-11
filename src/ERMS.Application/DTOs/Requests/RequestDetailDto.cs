@@ -16,4 +16,5 @@ public sealed record RequestDetailDto(
     int RequesterId,
     string RequesterName,
     IReadOnlyList<RequestHistoryItemDto> History,
-    IReadOnlyList<CommentResponseDto> Comments);
+    IReadOnlyList<CommentResponseDto> Comments,
+    IReadOnlyList<AttachmentResponseDto> Attachments);

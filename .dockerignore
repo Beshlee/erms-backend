@@ -1,0 +1,18 @@
+bin/
+obj/
+**/bin/
+**/obj/
+.vs/
+.idea/
+*.user
+
+tests/
+
+# Yüklenen dosya ekleri (FR-40 bonus, .gitignore'da da hariç)
+src/ERMS.Api/App_Data/
+
+.git/
+.gitignore
+.dockerignore
+README.md
+*.md

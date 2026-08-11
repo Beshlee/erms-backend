@@ -41,9 +41,44 @@ public sealed class RequestQueryRepository : IRequestQueryRepository
             requestsQuery = requestsQuery.Where(x => x.RequestTypeId == query.RequestTypeId);
         }
 
+        // Bölüm 8.3 bonus — "Global arama": yalnızca başlıkta değil, açıklamada ve talep
+        // türü adında da arar.
         if (!string.IsNullOrWhiteSpace(query.Search))
         {
-            requestsQuery = requestsQuery.Where(x => x.Title.Contains(query.Search));
+            requestsQuery = requestsQuery.Where(x =>
+                x.Title.Contains(query.Search) ||
+                x.Description.Contains(query.Search) ||
+                x.RequestType.Name.Contains(query.Search));
+        }
+
+        // Bölüm 8.3 bonus — "gelişmiş filtreleme (birden çok kritere göre)".
+        if (query.Priority is not null)
+        {
+            requestsQuery = requestsQuery.Where(x => x.Priority == query.Priority);
+        }
+
+        if (query.CreatedFrom is not null)
+        {
+            requestsQuery = requestsQuery.Where(x => x.CreatedAt >= query.CreatedFrom);
+        }
+
+        if (query.CreatedTo is not null)
+        {
+            // Kullanıcı bir gün seçtiğinde ("10.08.2026") o günün tamamını kastediyor —
+            // saat kısmını günün sonuna (23:59:59.999) tamamlıyoruz, aksi halde sadece
+            // gece yarısından önceki kayıtlar dahil olurdu.
+            var inclusiveEnd = query.CreatedTo.Value.Date.AddDays(1).AddTicks(-1);
+            requestsQuery = requestsQuery.Where(x => x.CreatedAt <= inclusiveEnd);
+        }
+
+        if (query.MinAmount is not null)
+        {
+            requestsQuery = requestsQuery.Where(x => x.Amount >= query.MinAmount);
+        }
+
+        if (query.MaxAmount is not null)
+        {
+            requestsQuery = requestsQuery.Where(x => x.Amount <= query.MaxAmount);
         }
 
         var totalCount = await requestsQuery.CountAsync(cancellationToken);
@@ -92,6 +127,7 @@ public sealed class RequestQueryRepository : IRequestQueryRepository
                 .ThenInclude(c => c.Author)
             .Include(x => x.History.OrderBy(h => h.ChangedAt))
                 .ThenInclude(h => h.ChangedBy)
+            .Include(x => x.Attachments)
             .FirstOrDefaultAsync(x => x.Id == requestId, cancellationToken);
     }
 }

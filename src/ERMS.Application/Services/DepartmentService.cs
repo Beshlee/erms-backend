@@ -7,6 +7,7 @@ using FluentValidation;
 
 namespace ERMS.Application.Services;
 
+/// <summary>Admin departman yönetimi (FR-11/12) — departman CRUD'u.</summary>
 public sealed class DepartmentService : IDepartmentService
 {
     private readonly IRepository<Department> _departmentRepository;

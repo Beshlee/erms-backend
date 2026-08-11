@@ -12,6 +12,12 @@ obj/
 *.mdf
 *.ldf
 
+## Yüklenen dosya ekleri (FR-40 bonus) — yerel diske yazılır, repoya girmemeli
+src/ERMS.Api/App_Data/
+
+## Docker (bonus) — gerçek secret'lar içerebilir, bkz. .env.example
+.env
+
 ## OS
 .DS_Store
 Thumbs.db

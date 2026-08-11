@@ -13,6 +13,23 @@ Content-Type: application/json
 GET {{ERMS.Api_HostAddress}}/api/auth/me
 Authorization: Bearer @token
 
+### Bonus — access token'ı yenile (login yanıtındaki "refreshToken" değerini kullan).
+### Rotation: dönen yanıttaki yeni refreshToken'ı kullan, eskisi bu istekten sonra geçersizdir.
+POST {{ERMS.Api_HostAddress}}/api/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "<login yanıtındaki refreshToken>"
+}
+
+### Bonus — çıkış (refresh token'ı sunucu tarafında geçersiz kılar)
+POST {{ERMS.Api_HostAddress}}/api/auth/logout
+Content-Type: application/json
+
+{
+  "refreshToken": "<login yanıtındaki refreshToken>"
+}
+
 ### Aktif talep türlerini listele (FR-15)
 GET {{ERMS.Api_HostAddress}}/api/request-types
 Authorization: Bearer @token
@@ -61,3 +78,21 @@ Content-Type: application/json
 {
   "comment": "Bu dönem izin yoğunluğu nedeniyle reddedildi."
 }
+
+### Bonus (FR-40) — talebe dosya eki yükle (yalnızca sahibi, Draft/Pending durumunda).
+### VS Code "REST Client" eklentisiyle çalışır; multipart sınırı (boundary) altındaki
+### dosya yolunu kendi makinende var olan bir dosyayla değiştir.
+POST {{ERMS.Api_HostAddress}}/api/requests/1/attachments
+Authorization: Bearer @token
+Content-Type: multipart/form-data; boundary=ErmsBoundary
+
+--ErmsBoundary
+Content-Disposition: form-data; name="file"; filename="fis.pdf"
+Content-Type: application/pdf
+
+< ./ornek-dosyalar/fis.pdf
+--ErmsBoundary--
+
+### Bonus (FR-40) — dosya ekini indir (talep sahibi ve ilgili yönetici)
+GET {{ERMS.Api_HostAddress}}/api/requests/1/attachments/1/download
+Authorization: Bearer @token

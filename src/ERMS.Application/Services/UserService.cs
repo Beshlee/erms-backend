@@ -8,6 +8,7 @@ using FluentValidation;
 
 namespace ERMS.Application.Services;
 
+/// <summary>Admin kullanıcı yönetimi (FR-07..10) — kullanıcı oluşturma/güncelleme/listeleme.</summary>
 public sealed class UserService : IUserService
 {
     private readonly IRepository<User> _userRepository;

@@ -14,11 +14,19 @@ public interface IRequestService
         UpdateRequestDto dto,
         CancellationToken cancellationToken = default);
 
-    /// <summary>FR-25..29 — giriş yapan kullanıcının kendi taleplerini filtreli/sayfalı listeler.</summary>
+    /// <summary>
+    /// FR-25..29 — giriş yapan kullanıcının kendi taleplerini filtreli/sayfalı listeler.
+    /// priority/createdFrom..maxAmount — Bölüm 8.3 bonus (global arama + gelişmiş filtreleme).
+    /// </summary>
     Task<PagedResult<RequestResponseDto>> GetMyRequestsAsync(
         string? status,
         int? requestTypeId,
         string? search,
+        string? priority,
+        DateTime? createdFrom,
+        DateTime? createdTo,
+        decimal? minAmount,
+        decimal? maxAmount,
         int page,
         int pageSize,
         CancellationToken cancellationToken = default);

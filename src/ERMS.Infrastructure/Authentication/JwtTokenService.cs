@@ -1,5 +1,6 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 using ERMS.Application.Abstractions.Authentication;
 using ERMS.Domain.Entities;
@@ -43,6 +44,16 @@ public sealed class JwtTokenService : IJwtTokenService
 
         var tokenString = new JwtSecurityTokenHandler().WriteToken(token);
 
-        return new JwtResult(tokenString, expiresAtUtc);
+        var refreshToken = GenerateRefreshToken();
+        var refreshTokenExpiresAtUtc = DateTime.UtcNow.AddDays(_settings.RefreshTokenExpiryDays);
+
+        return new JwtResult(tokenString, expiresAtUtc, refreshToken, refreshTokenExpiresAtUtc);
+    }
+
+    private static string GenerateRefreshToken()
+    {
+        // JWT'nin aksine kendi içinde bilgi taşımaz — DB'de saklanan, kriptografik olarak
+        // tahmin edilemez rastgele bir anahtar/referanstır (bkz. AuthService.RefreshAsync).
+        return Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
     }
 }

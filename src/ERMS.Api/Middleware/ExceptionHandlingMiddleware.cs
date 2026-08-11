@@ -7,6 +7,13 @@ namespace ERMS.Api.Middleware;
 /// Tüm controller'lardan fırlatılan AppException türevlerini (ve beklenmeyen hataları)
 /// Bölüm 5.6'daki standart hata modeline çevirir: { "code": "...", "message": "..." }.
 /// Controller'larda try-catch yazılmasını gereksiz kılar.
+///
+/// ASP.NET Core "middleware" nedir: her gelen HTTP isteği, Program.cs'te sırayla eklenen
+/// (app.UseMiddleware, app.UseCors, app.UseAuthentication, ...) bir zincirden geçer; her
+/// halka isteği bir sonrakine (<see cref="_next"/>) devreder, sonra yanıt geri dönerken de
+/// aynı sırayla (tersten) tekrar çalışır. Bu sınıf zincirin EN BAŞINA konur (Program.cs'te
+/// ilk middleware) ki zincirdeki HERHANGİ bir yerde (controller, sonraki middleware'ler)
+/// fırlatılan bir istisnayı yakalayabilsin — try/catch, `await _next(context)` çağrısını sarar.
 /// </summary>
 public sealed class ExceptionHandlingMiddleware
 {
@@ -23,6 +30,8 @@ public sealed class ExceptionHandlingMiddleware
     {
         try
         {
+            // Zincirdeki bir sonraki adıma geç — controller'a kadar giden tüm ara katmanlar
+            // ve controller action'ının kendisi burada, bu satırın "içinde" çalışır.
             await _next(context);
         }
         catch (ValidationAppException ex)

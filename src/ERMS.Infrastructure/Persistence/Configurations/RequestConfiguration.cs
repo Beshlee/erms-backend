@@ -4,6 +4,14 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace ERMS.Infrastructure.Persistence.Configurations;
 
+/// <summary>
+/// Request entity'sinin veritabanı eşlemesi — EF Core'un "Fluent API" yaklaşımı: kısıtlamaları
+/// (max uzunluk, zorunluluk, ilişkiler, index) Domain entity'sinin kendisine öznitelik
+/// ([MaxLength] gibi) olarak eklemek yerine, ayrı bir sınıfta tanımlarız. Böylece Domain
+/// katmanı EF Core'dan tamamen habersiz kalır (bkz. ERMS.Domain'in hiçbir NuGet paketine
+/// bağımlı olmaması) — bu dosyalar yalnızca Infrastructure'da, ApplicationDbContext
+/// tarafından <c>ApplyConfigurationsFromAssembly</c> ile otomatik keşfedilip uygulanır.
+/// </summary>
 public sealed class RequestConfiguration : IEntityTypeConfiguration<Request>
 {
     public void Configure(EntityTypeBuilder<Request> builder)

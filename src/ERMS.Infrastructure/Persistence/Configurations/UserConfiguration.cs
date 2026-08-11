@@ -33,6 +33,10 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
             .HasMaxLength(20)
             .IsRequired();
 
+        // Bonus — refresh token akışı (base64 kodlu 64 byte ~= 88 karakter, 200 pay bırakır).
+        builder.Property(x => x.RefreshToken)
+            .HasMaxLength(200);
+
         // Departman silinirse kullanıcılar kalır (Restrict) — departman soft-delete ile pasife alınır (FR-12).
         builder.HasOne(x => x.Department)
             .WithMany(x => x.Users)

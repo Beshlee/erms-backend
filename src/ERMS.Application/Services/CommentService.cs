@@ -8,6 +8,7 @@ using FluentValidation;
 
 namespace ERMS.Application.Services;
 
+/// <summary>Talebe yorum ekleme (FR-38/39) — talep sahibi ve ilgili yönetici yazabilir.</summary>
 public sealed class CommentService : ICommentService
 {
     private readonly IRepository<Request> _requestRepository;

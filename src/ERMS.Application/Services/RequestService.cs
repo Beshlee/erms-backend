@@ -10,6 +10,12 @@ using FluentValidation;
 
 namespace ERMS.Application.Services;
 
+/// <summary>
+/// Talep oluşturma/güncelleme/listeleme/gönderme/iptal (FR-16..30) — projedeki en büyük
+/// servis, çünkü Request entity'si tüm talep yaşam döngüsünün merkezinde. Durum geçişlerini
+/// (Draft → Pending → Approved/Rejected/Cancelled) doğrudan bu sınıf ve ApprovalService
+/// birlikte yönetir; her geçişte AddHistoryAsync ile bir audit log kaydı (FR-41) da eklenir.
+/// </summary>
 public sealed class RequestService : IRequestService
 {
     // Bölüm 4.2/FR-13 varsayılan türleri isimle eşleştiriyor — doküman RequestType'a
@@ -167,11 +173,18 @@ public sealed class RequestService : IRequestService
         string? status,
         int? requestTypeId,
         string? search,
+        string? priority,
+        DateTime? createdFrom,
+        DateTime? createdTo,
+        decimal? minAmount,
+        decimal? maxAmount,
         int page,
         int pageSize,
         CancellationToken cancellationToken = default)
     {
         var currentUserId = RequireCurrentUserId();
+
+        var errors = new Dictionary<string, string[]>();
 
         // FR-27: durum filtresi metin olarak geliyor (?status=Pending), enum'a çeviriyoruz.
         RequestStatus? parsedStatus = null;
@@ -179,13 +192,42 @@ public sealed class RequestService : IRequestService
         {
             if (!Enum.TryParse<RequestStatus>(status, ignoreCase: true, out var parsed))
             {
-                throw new ValidationAppException(new Dictionary<string, string[]>
-                {
-                    ["status"] = ["Geçersiz durum değeri. Beklenen: Draft, Pending, Approved, Rejected, Cancelled."]
-                });
+                errors["status"] = ["Geçersiz durum değeri. Beklenen: Draft, Pending, Approved, Rejected, Cancelled."];
             }
+            else
+            {
+                parsedStatus = parsed;
+            }
+        }
 
-            parsedStatus = parsed;
+        // Bölüm 8.3 bonus — "gelişmiş filtreleme": öncelik de status ile aynı şekilde
+        // metinden enum'a çevrilir.
+        RequestPriority? parsedPriority = null;
+        if (!string.IsNullOrWhiteSpace(priority))
+        {
+            if (!Enum.TryParse<RequestPriority>(priority, ignoreCase: true, out var parsed))
+            {
+                errors["priority"] = ["Geçersiz öncelik değeri. Beklenen: Low, Normal, High."];
+            }
+            else
+            {
+                parsedPriority = parsed;
+            }
+        }
+
+        if (createdFrom is not null && createdTo is not null && createdTo < createdFrom)
+        {
+            errors["createdTo"] = ["Bitiş tarihi başlangıç tarihinden önce olamaz."];
+        }
+
+        if (minAmount is not null && maxAmount is not null && maxAmount < minAmount)
+        {
+            errors["maxAmount"] = ["Üst tutar sınırı alt sınırdan küçük olamaz."];
+        }
+
+        if (errors.Count > 0)
+        {
+            throw new ValidationAppException(errors);
         }
 
         var query = new RequestQuery
@@ -193,13 +235,19 @@ public sealed class RequestService : IRequestService
             Status = parsedStatus,
             RequestTypeId = requestTypeId,
             Search = search,
+            Priority = parsedPriority,
+            CreatedFrom = createdFrom,
+            CreatedTo = createdTo,
+            MinAmount = minAmount,
+            MaxAmount = maxAmount,
             Page = page < 1 ? 1 : page,
             // FR-28: sayfalama — kötüye kullanımı (pageSize=100000 gibi) önlemek için üst sınır.
             PageSize = pageSize is < 1 or > 100 ? 10 : pageSize
         };
 
         // FR-25/26: yalnızca giriş yapan kullanıcının kendi talepleri (currentUserId ile sınırlı).
-        // FR-29: başlık arama da bu sorgunun içinde (RequestQueryRepository'de Title.Contains).
+        // FR-29 + Bölüm 8.3 bonus: global arama ve gelişmiş filtreler de bu sorgunun içinde
+        // (bkz. RequestQueryRepository.GetEmployeeRequestsAsync).
         var paged = await _requestQueryRepository.GetEmployeeRequestsAsync(currentUserId, query, cancellationToken);
 
         var items = paged.Items
@@ -347,6 +395,12 @@ public sealed class RequestService : IRequestService
                 c.CreatedAt))
             .ToList();
 
+        // FR-40 bonus: dosya ekleri, en yeni üstte.
+        var attachments = request.Attachments
+            .OrderByDescending(a => a.UploadedAt)
+            .Select(a => new AttachmentResponseDto(a.Id, a.FileName, a.ContentType, a.FileSize, a.UploadedAt))
+            .ToList();
+
         return new RequestDetailDto(
             request.Id,
             request.Title,
@@ -362,7 +416,8 @@ public sealed class RequestService : IRequestService
             request.RequesterId,
             $"{request.Requester.FirstName} {request.Requester.LastName}",
             history,
-            comments);
+            comments,
+            attachments);
     }
 
     private async Task AddHistoryAsync(

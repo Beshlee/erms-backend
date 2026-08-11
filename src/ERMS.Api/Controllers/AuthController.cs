@@ -45,4 +45,32 @@ public sealed class AuthController : ControllerBase
             role = _currentUserService.Role?.ToString()
         });
     }
+
+    /// <summary>
+    /// Bonus — refresh token akışı: geçerli bir refresh token'ı yeni bir JWT'ye çevirir
+    /// (rotation). Access token süresi dolmuş olabileceği için [AllowAnonymous] — burada
+    /// güvenliği sağlayan Authorization header'ı değil, gövdedeki refresh token'dır.
+    /// </summary>
+    [HttpPost("refresh")]
+    [AllowAnonymous]
+    public async Task<ActionResult<LoginResponseDto>> Refresh(
+        RefreshTokenRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _authService.RefreshAsync(request, cancellationToken);
+
+        return Ok(result);
+    }
+
+    /// <summary>Bonus — refresh token akışı: refresh token'ı geçersiz kılar (sunucu tarafında çıkış).</summary>
+    [HttpPost("logout")]
+    [AllowAnonymous]
+    public async Task<IActionResult> Logout(
+        RefreshTokenRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        await _authService.RevokeRefreshTokenAsync(request, cancellationToken);
+
+        return NoContent();
+    }
 }

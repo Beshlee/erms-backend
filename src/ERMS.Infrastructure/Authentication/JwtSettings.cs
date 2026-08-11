@@ -9,4 +9,7 @@ public sealed class JwtSettings
     public string Issuer { get; set; } = null!;
     public string Audience { get; set; } = null!;
     public int ExpiryMinutes { get; set; } = 60;
+
+    /// <summary>Bonus — refresh token akışı: refresh token'ın geçerlilik süresi (gün).</summary>
+    public int RefreshTokenExpiryDays { get; set; } = 7;
 }
