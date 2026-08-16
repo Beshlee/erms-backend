@@ -147,8 +147,6 @@ if (app.Environment.IsDevelopment())
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
-app.UseHttpsRedirection();
-
 app.UseCors("AngularClient");
 
 app.UseAuthentication();
