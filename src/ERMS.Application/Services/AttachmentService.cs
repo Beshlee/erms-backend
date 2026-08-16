@@ -54,7 +54,7 @@ public sealed class AttachmentService : IAttachmentService
         FileUploadDto file,
         CancellationToken cancellationToken = default)
     {
-        ValidateFile(file);
+        await ValidateFileAsync(file, cancellationToken);
 
         var request = await _requestRepository.GetByIdAsync(requestId, cancellationToken)
             ?? throw new NotFoundAppException("Talep bulunamadı.");
@@ -133,9 +133,29 @@ public sealed class AttachmentService : IAttachmentService
         };
     }
 
-    private static void ValidateFile(FileUploadDto file)
+    // Review bulgusu: yalnızca uzantıya bakmak yetmez — ".pdf" uzantılı ama içeriği tamamen
+    // farklı (ör. çalıştırılabilir) bir dosya bu kontrolü kolayca geçerdi. Her uzantı grubunun
+    // dosyanın ilk birkaç byte'ında (magic number / file signature) taşıması gereken sabit
+    // imza burada tanımlı. Mükemmel bir doğrulama değildir (ör. bir .docx'i .xlsx diye
+    // yüklemeyi engellemez — ikisi de aynı ZIP imzasını paylaşır) ama bariz bir tür sahteciliğini
+    // (ör. çalıştırılabiliri ".pdf" diye yüklemeyi) engeller — "makul bir varsayılan" (bkz.
+    // AllowedExtensions'daki gerekçe).
+    private static readonly Dictionary<string, byte[][]> SignaturesByExtension = new(StringComparer.OrdinalIgnoreCase)
+    {
+        [".pdf"] = [[0x25, 0x50, 0x44, 0x46]], // %PDF
+        [".jpg"] = [[0xFF, 0xD8, 0xFF]],
+        [".jpeg"] = [[0xFF, 0xD8, 0xFF]],
+        [".png"] = [[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]],
+        [".doc"] = [[0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1]], // eski OLE biçimi (.doc/.xls ortak)
+        [".xls"] = [[0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1]],
+        [".docx"] = [[0x50, 0x4B, 0x03, 0x04]], // ZIP tabanlı OOXML (.docx/.xlsx ortak)
+        [".xlsx"] = [[0x50, 0x4B, 0x03, 0x04]]
+    };
+
+    private static async Task ValidateFileAsync(FileUploadDto file, CancellationToken cancellationToken)
     {
         var errors = new Dictionary<string, string[]>();
+        string? extension = null;
 
         if (file.Length <= 0)
         {
@@ -147,17 +167,50 @@ public sealed class AttachmentService : IAttachmentService
         }
         else
         {
-            var extension = Path.GetExtension(file.FileName);
+            extension = Path.GetExtension(file.FileName);
             if (string.IsNullOrEmpty(extension) || !AllowedExtensions.Contains(extension))
             {
                 errors["file"] = [$"İzin verilen dosya türleri: {string.Join(", ", AllowedExtensions.OrderBy(x => x))}"];
             }
         }
 
+        if (errors.Count == 0
+            && extension is not null
+            && !await HasMatchingSignatureAsync(file.Content, extension, cancellationToken))
+        {
+            errors["file"] = ["Dosya içeriği, uzantısıyla uyuşmuyor ya da bozuk."];
+        }
+
         if (errors.Count > 0)
         {
             throw new ValidationAppException(errors);
         }
+    }
+
+    private static async Task<bool> HasMatchingSignatureAsync(
+        Stream content, string extension, CancellationToken cancellationToken)
+    {
+        if (!SignaturesByExtension.TryGetValue(extension, out var signatures))
+        {
+            // Listede olmayan bir uzantı zaten yukarıdaki AllowedExtensions kontrolünü geçemez.
+            return true;
+        }
+
+        // Stream seek edilemiyorsa (uygulamada normalde olmaz — IFormFile'ın akışı her zaman
+        // seekable'dır) bu kontrolü atlıyoruz; uzantı/boyut kontrolleri hâlâ geçerli kalır.
+        if (!content.CanSeek)
+        {
+            return true;
+        }
+
+        var maxSignatureLength = signatures.Max(s => s.Length);
+        var buffer = new byte[maxSignatureLength];
+
+        content.Position = 0;
+        var bytesRead = await content.ReadAsync(buffer.AsMemory(0, maxSignatureLength), cancellationToken);
+        content.Position = 0; // SaveAsync akışı baştan okuyacak, imza kontrolü onu tüketmemeli.
+
+        return signatures.Any(sig => bytesRead >= sig.Length && buffer.AsSpan(0, sig.Length).SequenceEqual(sig));
     }
 
     private int RequireCurrentUserId()

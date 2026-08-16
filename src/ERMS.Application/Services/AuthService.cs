@@ -17,17 +17,20 @@ public sealed class AuthService : IAuthService
     private readonly IRepository<User> _userRepository;
     private readonly IPasswordHasher _passwordHasher;
     private readonly IJwtTokenService _jwtTokenService;
+    private readonly IRefreshTokenHasher _refreshTokenHasher;
     private readonly IUnitOfWork _unitOfWork;
 
     public AuthService(
         IRepository<User> userRepository,
         IPasswordHasher passwordHasher,
         IJwtTokenService jwtTokenService,
+        IRefreshTokenHasher refreshTokenHasher,
         IUnitOfWork unitOfWork)
     {
         _userRepository = userRepository;
         _passwordHasher = passwordHasher;
         _jwtTokenService = jwtTokenService;
+        _refreshTokenHasher = refreshTokenHasher;
         _unitOfWork = unitOfWork;
     }
 
@@ -55,8 +58,11 @@ public sealed class AuthService : IAuthService
         RefreshTokenRequestDto request,
         CancellationToken cancellationToken = default)
     {
+        // DB'de yalnızca hash saklanıyor (bkz. IRefreshTokenHasher) — istekten gelen düz
+        // metin token'ı aynı şekilde hash'leyip öyle aranıyor.
+        var hashedToken = _refreshTokenHasher.Hash(request.RefreshToken);
         var user = await _userRepository.FirstOrDefaultAsync(
-            u => u.RefreshToken == request.RefreshToken,
+            u => u.RefreshToken == hashedToken,
             cancellationToken);
 
         // Bulunamadı, süresi dolmuş ya da kullanıcı bu arada pasifleştirilmiş — hepsi aynı
@@ -80,8 +86,9 @@ public sealed class AuthService : IAuthService
         RefreshTokenRequestDto request,
         CancellationToken cancellationToken = default)
     {
+        var hashedToken = _refreshTokenHasher.Hash(request.RefreshToken);
         var user = await _userRepository.FirstOrDefaultAsync(
-            u => u.RefreshToken == request.RefreshToken,
+            u => u.RefreshToken == hashedToken,
             cancellationToken);
 
         // Bilinmeyen/zaten geçersiz bir token için sessizce başarılı sayılır — çıkış
@@ -101,7 +108,9 @@ public sealed class AuthService : IAuthService
     {
         var jwt = _jwtTokenService.GenerateToken(user);
 
-        user.RefreshToken = jwt.RefreshToken;
+        // DB'ye yalnızca hash yazılır — düz metin token yalnızca bir kez, doğrudan istemciye
+        // (aşağıdaki dönüş değeriyle) verilir ve bir daha hiçbir yerde saklanmaz.
+        user.RefreshToken = _refreshTokenHasher.Hash(jwt.RefreshToken);
         user.RefreshTokenExpiresAt = jwt.RefreshTokenExpiresAtUtc;
         _userRepository.Update(user);
         await _unitOfWork.SaveChangesAsync(cancellationToken);

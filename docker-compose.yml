@@ -5,9 +5,11 @@
 # Development ortamında migration'ları otomatik uygulayıp örnek veriyi (seed) ekliyor,
 # böylece container ilk ayağa kalkışında elle "dotnet ef database update" gerekmiyor.
 #
-# ⚠️ Aşağıdaki SA parolası ve JWT secret'ı yalnızca YEREL/DEMO amaçlıdır (appsettings.json'daki
-# ile aynı uyarı geçerli) — gerçek bir ortamda ".env" dosyası veya bir secret store kullanılmalı,
-# asla kaynak koduna/compose dosyasına gömülü bırakılmamalı.
+# ⚠️ Review bulgusu düzeltmesi: SA parolası ve JWT secret'ı artık burada SABİT bir değere
+# düşmüyor (":-varsayılan" yerine ":?hata mesajı" kullanılıyor) — "docker compose up" bu
+# değerler bir .env dosyasında tanımlı DEĞİLSE hatayla durur. Kendi değerlerini kullanmak
+# için: `cp .env.example .env` sonra .env içindeki CHANGE_ME değerlerini doldur (.env
+# .gitignore'da, asla commit'lenmez).
 
 services:
   sqlserver:
@@ -15,7 +17,7 @@ services:
     container_name: erms-sqlserver
     environment:
       ACCEPT_EULA: "Y"
-      MSSQL_SA_PASSWORD: ${SQL_SA_PASSWORD:-Erms#2026Strong}
+      MSSQL_SA_PASSWORD: ${SQL_SA_PASSWORD:?SQL_SA_PASSWORD tanımlı değil — .env dosyanı .env.example'dan oluştur.}
     ports:
       - "1433:1433"
     volumes:
@@ -39,8 +41,8 @@ services:
         condition: service_healthy
     environment:
       ASPNETCORE_ENVIRONMENT: Development
-      ConnectionStrings__DefaultConnection: "Server=sqlserver,1433;Database=ErmsDb;User Id=sa;Password=${SQL_SA_PASSWORD:-Erms#2026Strong};TrustServerCertificate=True"
-      Jwt__Secret: ${JWT_SECRET:-F7Z4BFGPb9Vr6dBvasB5LEYhFCWJa-FBqkQzOSmof35IknPCHeM307rag26NK6kQ}
+      ConnectionStrings__DefaultConnection: "Server=sqlserver,1433;Database=ErmsDb;User Id=sa;Password=${SQL_SA_PASSWORD:?SQL_SA_PASSWORD tanımlı değil — .env dosyanı .env.example'dan oluştur.};TrustServerCertificate=True"
+      Jwt__Secret: ${JWT_SECRET:?JWT_SECRET tanımlı değil — .env dosyanı .env.example'dan oluştur.}
       Jwt__Issuer: ErmsApi
       Jwt__Audience: ErmsClient
       Jwt__ExpiryMinutes: "60"

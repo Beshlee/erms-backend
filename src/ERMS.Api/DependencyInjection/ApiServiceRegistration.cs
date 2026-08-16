@@ -90,6 +90,8 @@ public static class ApiServiceRegistration
 
         services.AddScoped<IPasswordHasher, PasswordHasher>();
         services.AddScoped<IJwtTokenService, JwtTokenService>();
+        // Durumsuz/saf bir fonksiyon (SHA-256) olduğu için Singleton — bkz. IRefreshTokenHasher.
+        services.AddSingleton<IRefreshTokenHasher, RefreshTokenHasher>();
         services.AddScoped<IAuthService, AuthService>();
 
         services.AddHttpContextAccessor();

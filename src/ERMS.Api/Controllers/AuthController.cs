@@ -3,6 +3,7 @@ using ERMS.Application.DTOs.Auth;
 using ERMS.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace ERMS.Api.Controllers;
 
@@ -19,9 +20,14 @@ public sealed class AuthController : ControllerBase
         _currentUserService = currentUserService;
     }
 
-    /// <summary>FR-01, FR-02, FR-03 — e-posta/parola ile giriş, JWT üretir.</summary>
+    /// <summary>
+    /// FR-01, FR-02, FR-03 — e-posta/parola ile giriş, JWT üretir.
+    /// Review bulgusu: IP başına dakikada 5 denemeyle sınırlı (bkz. Program.cs → "auth" politikası)
+    /// — otomatik parola deneme saldırılarını yavaşlatmak için.
+    /// </summary>
     [HttpPost("login")]
     [AllowAnonymous]
+    [EnableRateLimiting("auth")]
     public async Task<ActionResult<LoginResponseDto>> Login(
         LoginRequestDto request,
         CancellationToken cancellationToken)

@@ -6,6 +6,7 @@ using ERMS.Application.DTOs.Auth;
 using ERMS.Application.Services;
 using ERMS.Domain.Entities;
 using ERMS.Domain.Enums;
+using ERMS.Infrastructure.Authentication;
 using Moq;
 
 namespace ERMS.Tests.Services;
@@ -38,6 +39,11 @@ public class AuthServiceTests
         return repo;
     }
 
+    // Gerçek (mock'lanmamış) implementasyon kullanılıyor: saf/deterministik bir fonksiyon
+    // olduğu için davranışını taklit etmeye gerek yok, ayrıca aşağıdaki testlerde
+    // "DB'ye yazılan değer gerçekten hash'lenmiş mi" diye doğrudan doğrulayabilmek için gerekli.
+    private static readonly IRefreshTokenHasher RefreshTokenHasher = new RefreshTokenHasher();
+
     private static AuthService CreateSut(
         Mock<IRepository<User>> userRepo,
         IPasswordHasher? passwordHasher = null,
@@ -50,6 +56,7 @@ public class AuthServiceTests
             userRepo.Object,
             passwordHasher ?? Mock.Of<IPasswordHasher>(),
             jwtTokenService ?? Mock.Of<IJwtTokenService>(),
+            RefreshTokenHasher,
             unitOfWork.Object);
     }
 
@@ -82,9 +89,10 @@ public class AuthServiceTests
         Assert.Equal("Ahmet Yılmaz", result.User.FullName);
         Assert.Equal("Employee", result.User.Role);
 
-        // Refresh token, sonraki bir RefreshAsync çağrısında bulunabilmesi için kullanıcıya
-        // kalıcı olarak yazılmalı.
-        Assert.Equal(jwt.RefreshToken, user.RefreshToken);
+        // Kullanıcıya kalıcı olarak yazılan değer, dönen düz metin token'ın kendisi DEĞİL,
+        // hash'i olmalı (bkz. IRefreshTokenHasher) — DB'de asla düz metin saklanmaz.
+        Assert.Equal(RefreshTokenHasher.Hash(jwt.RefreshToken), user.RefreshToken);
+        Assert.NotEqual(jwt.RefreshToken, user.RefreshToken);
         userRepo.Verify(r => r.Update(user), Times.Once);
     }
 
@@ -161,8 +169,9 @@ public class AuthServiceTests
 
         Assert.Equal(newJwt.Token, result.Token);
         Assert.Equal(newJwt.RefreshToken, result.RefreshToken);
-        // Rotation: eski refresh token artık kullanıcıda değil, yenisiyle değişti.
-        Assert.Equal(newJwt.RefreshToken, user.RefreshToken);
+        // Rotation: eski refresh token'ın hash'i artık kullanıcıda değil, yenisinin hash'iyle
+        // değişti (DB'de düz metin hiçbir zaman saklanmaz).
+        Assert.Equal(RefreshTokenHasher.Hash(newJwt.RefreshToken), user.RefreshToken);
         Assert.NotEqual("eski-refresh-token", user.RefreshToken);
     }
 

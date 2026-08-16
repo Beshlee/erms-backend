@@ -1,11 +1,13 @@
 using System.Text;
 using System.Text.Json.Serialization;
+using System.Threading.RateLimiting;
 using ERMS.Api.DependencyInjection;
 using ERMS.Api.Middleware;
 using ERMS.Infrastructure.Authentication;
 using ERMS.Infrastructure.Persistence;
 using ERMS.Infrastructure.Persistence.Seed;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -73,6 +75,18 @@ builder.Services.AddErmsServices(builder.Configuration);
 var jwtSettings = builder.Configuration.GetSection(JwtSettings.SectionName).Get<JwtSettings>()
     ?? throw new InvalidOperationException("Jwt yapılandırması (appsettings.json → \"Jwt\") eksik.");
 
+// Secret artık appsettings.json'da DEĞİL (review bulgusu — git geçmişine gömülü bir sır asla
+// güvenli sayılmaz). Yerelde "dotnet user-secrets set Jwt:Secret <değer>" ile, container'da
+// JWT_SECRET ortam değişkeniyle sağlanmalı (bkz. README → Kurulum, docker-compose.yml).
+if (string.IsNullOrWhiteSpace(jwtSettings.Secret))
+{
+    throw new InvalidOperationException(
+        "Jwt:Secret tanımlı değil. Yerel geliştirmede: "
+        + "'dotnet user-secrets set \"Jwt:Secret\" \"<en az 32 karakterlik rastgele bir değer>\" "
+        + "--project src/ERMS.Api'. Docker'da: JWT_SECRET ortam değişkeni / .env dosyası "
+        + "(bkz. .env.example).");
+}
+
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -129,6 +143,24 @@ builder.Services.AddCors(options =>
     });
 });
 
+// Review bulgusu: /api/auth/login için IP başına hız sınırı — otomatik parola deneme
+// (brute-force) saldırılarını yavaşlatır. FR'lerde istenmiyor ama Bölüm 8.2'deki
+// "Doğrulama ve güvenlik" değerlendirme kriterinin kapsamına giren makul bir sertleştirme.
+// Normal bir kullanıcının 1 dakikada 5'ten fazla giriş denemesi olması beklenmez.
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    options.AddPolicy("auth", httpContext => RateLimitPartition.GetFixedWindowLimiter(
+        partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        factory: _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 5,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0
+        }));
+});
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -148,6 +180,8 @@ if (app.Environment.IsDevelopment())
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 app.UseCors("AngularClient");
+
+app.UseRateLimiter();
 
 app.UseAuthentication();
 app.UseAuthorization();

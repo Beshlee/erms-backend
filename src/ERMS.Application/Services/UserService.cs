@@ -4,6 +4,7 @@ using ERMS.Application.Common.Exceptions;
 using ERMS.Application.DTOs.Admin;
 using ERMS.Application.Interfaces;
 using ERMS.Domain.Entities;
+using ERMS.Domain.Enums;
 using FluentValidation;
 
 namespace ERMS.Application.Services;
@@ -56,6 +57,18 @@ public sealed class UserService : IUserService
             {
                 throw new NotFoundAppException("Belirtilen yönetici bulunamadı.");
             }
+
+            // FR-32/US-06: onay akışı yalnızca Manager rolündeki kullanıcılar üzerinden işler
+            // ([Authorize(Roles = Manager)] — ApprovalsController). Manager olmayan biri
+            // ManagerId olarak atanırsa, o kişiye bağlı personelin talepleri hiçbir zaman
+            // onay ekranına düşmez (sessiz bir çıkmaz) — bu yüzden burada engelliyoruz.
+            if (manager.Role != UserRole.Manager)
+            {
+                throw new ValidationAppException(new Dictionary<string, string[]>
+                {
+                    ["managerId"] = ["Belirtilen kullanıcı Manager rolünde değil."]
+                });
+            }
         }
 
         var user = new User
@@ -106,6 +119,16 @@ public sealed class UserService : IUserService
             if (manager is null)
             {
                 throw new NotFoundAppException("Belirtilen yönetici bulunamadı.");
+            }
+
+            // FR-32/US-06 ile aynı gerekçe (bkz. CreateAsync) — Manager olmayan biri
+            // yönetici olarak atanamaz.
+            if (manager.Role != UserRole.Manager)
+            {
+                throw new ValidationAppException(new Dictionary<string, string[]>
+                {
+                    ["managerId"] = ["Belirtilen kullanıcı Manager rolünde değil."]
+                });
             }
         }
 

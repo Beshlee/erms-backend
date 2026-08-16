@@ -55,9 +55,17 @@ dotnet build ERMS.slnx
 # Veritabanını oluştur / migration'ları uygula
 dotnet ef database update --project src/ERMS.Infrastructure --startup-project src/ERMS.Api
 
+# JWT secret'ını yerel "user-secrets" deposuna tanımla (yalnızca bir kez, makine başına).
+# appsettings.json'da BİLEREK boş bırakılmıştır — bir sır asla kaynak koduna commit'lenmemeli.
+dotnet user-secrets init --project src/ERMS.Api
+dotnet user-secrets set "Jwt:Secret" "<en az 32 karakterlik rastgele bir değer>" --project src/ERMS.Api
+
 # API'yi çalıştır
 dotnet run --project src/ERMS.Api
 ```
+
+`Jwt:Secret` tanımlı değilse uygulama, ne yapman gerektiğini açıklayan bir hata ile (`Program.cs`)
+başlamayı reddeder — bu bilinçlidir, sessizce boş bir anahtarla ayağa kalkmasındansa.
 
 Geliştirme ortamında migration'lar `dotnet run` sırasında otomatik uygulanır ve örnek veri
 (seed) eklenir — ayrıca `dotnet ef database update` çalıştırmana gerek yok.
@@ -109,7 +117,10 @@ ER diyagramı, REST API sözleşmeleri ve sprint planını içerir.
 ### Bonus — Docker
 
 ```bash
-# Repo kökünden:
+# Repo kökünden — ÖNCE bir .env dosyası oluşturman gerekir (aşağıya bak), aksi halde
+# docker compose SQL_SA_PASSWORD/JWT_SECRET tanımlı değil diye hatayla durur.
+cp .env.example .env
+# .env içindeki CHANGE_ME_... alanlarını kendi değerlerinle doldur, sonra:
 docker compose up --build
 ```
 
@@ -121,9 +132,11 @@ Bu tek komut iki container ayağa kaldırır:
   `dotnet ef database update` gerekmez.
 
 API `http://localhost:8080` üzerinden erişilebilir olur (Swagger: `http://localhost:8080/swagger`).
-Bağlantı dizesi, JWT secret'ı ve CORS izinli origin'i (appsettings.json yerine) ortam
-değişkenleriyle geçiliyor — kendi değerlerini kullanmak istersen `.env.example`'ı `.env` olarak
-kopyalayıp doldurabilirsin (`.env` `.gitignore`'da, commit'lenmez).
+Bağlantı dizesi, JWT secret'ı ve CORS izinli origin'i (appsettings.json yerine) `.env`'den
+gelen ortam değişkenleriyle geçiliyor — bu dosya `.gitignore`'dadır, asla commit'lenmez ve
+`docker-compose.yml` içindeki değerler artık sabit bir varsayılana düşmez (review bulgusu:
+eskiden `.env.example`'da gerçek, çalışan bir sır commit'lenmişti — artık yalnızca `CHANGE_ME_`
+şablonu var, bkz. `.env.example`).
 
 `erms-frontend`'i ayrıca (host'ta, container dışında) `npm start` ile çalıştırıp
 `environment.ts`'teki `apiUrl`'i `http://localhost:8080/api` yapman yeterli.
