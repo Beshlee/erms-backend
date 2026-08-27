@@ -203,7 +203,7 @@ ile önceden doldurabilmesi için — bkz. `erms-frontend` Ekran 6 çalışması
 ### Bonus — Birim testleri (xUnit)
 
 `tests/ERMS.Tests` altında, Application katmanındaki servislerin (AuthService, RequestService,
-ApprovalService) iş kurallarını doğrulayan 19 test var. Repository/UnitOfWork/CurrentUserService
+ApprovalService) iş kurallarını doğrulayan 27 test var. Repository/UnitOfWork/CurrentUserService
 gibi bağımlılıklar **Moq** ile mock'lanıyor; FluentValidation validator'ları ise gerçek
 örnekleriyle kullanılıyor (böylece testler gerçek doğrulama mantığını da kapsıyor).
 
